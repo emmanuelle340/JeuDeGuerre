@@ -41,11 +41,7 @@ const PageDeJeu = () => {
         duration: Snackbar.LENGTH_LONG, // 3 seconds
       });
     }
-    if(monTour){
-        setTouchable(true);
-    }else{
-        setTouchable(false);
-    }
+    
   }, [pionsCount]);
 
   const generateRandomPoints = () => {
