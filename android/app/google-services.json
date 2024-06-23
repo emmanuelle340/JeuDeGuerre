@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1003020346357",
+    "project_id": "jeudeguerre-dfd5c",
+    "storage_bucket": "jeudeguerre-dfd5c.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1003020346357:android:54f2a9c25f67f1790536bc",
+        "android_client_info": {
+          "package_name": "com.jeudeguerre"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1003020346357-6uofs4sht51u181p91i0nr02hhp1o0jh.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.jeudeguerre",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "1003020346357-pmkmmhl9ajmgupkq6noloovv07b6l93n.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDThrewtulK0cfsjBSDMWEgSv1VrBIzY_g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1003020346357-pmkmmhl9ajmgupkq6noloovv07b6l93n.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
