@@ -6,12 +6,14 @@ import {
   StyleSheet,
   Dimensions,
   Text,
+  TouchableOpacity,
 } from "react-native";
 import Snackbar from "react-native-snackbar";
 
 // Importez les images des pions
 import Reine from "../assets/soldat.png";
 import Soldat from "../assets/soldat.png";
+import ToucheImage from "../assets/reine_morte.png"; // Image pour le point touché par la machine
 import Toast from "react-native-toast-message";
 
 const PageDeJeu = () => {
@@ -24,11 +26,17 @@ const PageDeJeu = () => {
   const [score, setScore] = useState(0);
   const [scoreMachine, setScoreMachine] = useState(0);
   const [showMachineScore, setShowMachineScore] = useState(false); // Nouvel état pour afficher le score de la machine
-  const [pointsMachine, setPointsMachine] = useState([]);
-  const screenWidth = Dimensions.get("window").width;
-  const screenHeight = Dimensions.get("window").height;
-  const pionHeight = screenHeight / 5; // Hauteur disponible pour chaque pion
-  const pionWidth = pionHeight; // Largeur des pions, pour les garder carrés
+  const [touchableMachine, settouchableMachine] = useState([]);
+  const [countTourMachine, setCountTourMachine] = useState(0);
+  const [screenWidth, setScreenWidth] = useState(
+    Dimensions.get("window").width
+  );
+  const [screenHeight, setScreenHeight] = useState(
+    Dimensions.get("window").height
+  );
+  const [pionHeight, setPionHeight] = useState(screenHeight / 5); // Hauteur disponible pour chaque pion
+  const [pionWidth, setPionWidth] = useState(pionHeight); // Largeur des pions, pour les garder carrés
+  const [touchedByMachine, setTouchedByMachine] = useState(null); // État pour suivre le point touché par la machine
 
   useEffect(() => {
     Snackbar.show({
@@ -69,17 +77,26 @@ const PageDeJeu = () => {
     });
   };
 
-  const generatePoints = ()=>{
-    const randomX = Math.random();
-    const randomY = Math.random();
-    return({
-      x: randomX * screenWidth - pionWidth / 2,
-      y: (1 - randomY) * screenHeight - pionHeight / 2,
-      normalizedX: randomX.toFixed(2),
-      normalizedY: randomY.toFixed(2),
-      type: "Soldat",
-    })
+  const generatePoints = () => {
+    const points = [];
 
+    // Nombre de lignes et de colonnes en fonction de pionWidth et pionHeight
+    const columns = Math.ceil(screenWidth / pionWidth);
+    const rows = Math.ceil(screenHeight / pionHeight);
+
+    for (let i = 0; i < columns; i++) {
+      for (let j = 0; j < rows; j++) {
+        points.push({
+          x: i * pionWidth,
+          y: j * pionHeight,
+          type: "Soldat",
+        });
+      }
+    }
+    console.log(points);
+
+    // Mettre à jour l'état touchableMachine avec les points générés
+    settouchableMachine(points);
   };
 
   const checkPointMatch = (touchPoint) => {
@@ -95,6 +112,30 @@ const PageDeJeu = () => {
         return true; // Correspondance trouvée
       }
     }
+    return false; // Aucune correspondance trouvée
+  };
+
+  const checkPointMachineMatch = (touchPoint) => {
+    // Vérifie si touchableMachine ou l'élément actuel est défini
+    if (!touchableMachine || !touchableMachine[countTourMachine]) {
+      return false; // Si non défini, retourne false
+    }
+
+    // Récupère l'élément de touchableMachine correspondant à countTourMachine
+    const pion = touchableMachine[countTourMachine];
+
+    // Vérifie si les coordonnées du touchPoint correspondent à celles du pion
+    if (
+      touchPoint.x >= pion.x &&
+      touchPoint.x <= pion.x + pionWidth &&
+      touchPoint.y >= pion.y &&
+      touchPoint.y <= pion.y + pionHeight
+    ) {
+      // Met à jour l'état touchedByMachine avec le pion correspondant
+      setTouchedByMachine(pion);
+      return true; // Correspondance trouvée
+    }
+
     return false; // Aucune correspondance trouvée
   };
 
@@ -115,17 +156,6 @@ const PageDeJeu = () => {
         };
 
         setTouchPoints((prevPoints) => [...prevPoints, newTouchPoint]);
-
-        // Désactiver les touches après le placement du point rouge
-        setTouchable(false);
-        Toast.show({
-          type: "success",
-          position: "top",
-          text1: "l'ordinateur joue",
-          text2: "une fois ce message quitte de votre ecran vous pourrez jouer",
-          visibilityTime: 5000, // 5 seconds
-        });
-
         const isPointMatched = checkPointMatch(newTouchPoint);
 
         if (isPointMatched) {
@@ -136,7 +166,6 @@ const PageDeJeu = () => {
           });
           // Logique pour augmenter le score ou effectuer d'autres actions
           setScore((prevScore) => prevScore + 1);
-          
         } else {
           // Aucun point correspondant trouvé
           Snackbar.show({
@@ -144,12 +173,34 @@ const PageDeJeu = () => {
             duration: Snackbar.LENGTH_LONG, // 3 seconds
           });
         }
+        // Désactiver les touches après le placement du point rouge
+        setTouchable(false);
+        Toast.show({
+          type: "success",
+          position: "top",
+          text1: "l'ordinateur joue",
+          text2: "une fois ce message quitte de votre ecran vous pourrez jouer",
+          visibilityTime: 5000, // 5 seconds
+        });
+        generatePoints();
 
-        console.log(
-          `Touch Point: x=${newTouchPoint.normalizedX}, y=${newTouchPoint.normalizedY}`
-        );
+        if (checkPointMachineMatch(touchableMachine[countTourMachine])) {
+          setScoreMachine((prevScore) => prevScore + 1);
+          // Mettre à jour le point touché par la machine
+          setTouchedByMachine(touchableMachine[countTourMachine]);
+          // Afficher un Snackbar pour indiquer que la machine a touché un point
+          Snackbar.show({
+            text: "La machine vous a touché !",
+            duration: Snackbar.LENGTH_LONG, // 3 seconds
+          });
+        }
+        setCountTourMachine((previousCount) => previousCount + 1);
+
+        console.log(`Touch Point: x=${newTouchPoint.x}, y=${newTouchPoint.y}`);
         console.log(`Machine Points:`, pionsMachine);
         console.log(`Player Points:`, pions);
+        console.log(`touchabe:`, touchPoints);
+        console.log(`Pions Machine: `, touchableMachine);
 
         setTimeout(() => {
           setTouchable(true);
@@ -188,7 +239,7 @@ const PageDeJeu = () => {
           </Text>
         </View>
       )}
-
+  
       {/* Plateau de jeu */}
       <TouchableWithoutFeedback
         onPress={handleBoardPress}
@@ -206,6 +257,7 @@ const PageDeJeu = () => {
                   height: pionHeight,
                   left: pion.x,
                   top: pion.y,
+                  opacity: touchedByMachine && touchedByMachine.id === pion.id ? 0 : 1, // Masquer l'image si elle correspond à touchedByMachine
                 },
               ]}
             />
@@ -225,12 +277,31 @@ const PageDeJeu = () => {
               ]}
             ></View>
           ))}
+          {touchedByMachine ? (
+            <Image
+              source={ToucheImage} // Image pour indiquer le point touché par la machine
+              style={[
+                styles.pion,
+                {
+                  width: pionWidth,
+                  height: pionHeight,
+                  left: touchedByMachine.x,
+                  top: touchedByMachine.y,
+                },
+              ]}
+            />
+          ) : null /* Aucun point touché par la machine */}
         </View>
       </TouchableWithoutFeedback>
-
+      {showMachineScore && (
+        <TouchableOpacity style={styles.buttonContainer}>
+          <Text style={styles.buttonText}>Demandez à Gemini</Text>
+        </TouchableOpacity>
+      )}
       <Toast ref={(ref) => Toast.setRef(ref)} />
     </View>
   );
+  
 };
 
 const styles = StyleSheet.create({
@@ -246,14 +317,14 @@ const styles = StyleSheet.create({
   pion: {
     position: "absolute",
     resizeMode: "contain",
-    zIndex: 1, // Ensure pions are below touch points
+    zIndex: 1, // Assurer que les pions sont en dessous des points de contact
   },
   touchPoint: {
     position: "absolute",
     justifyContent: "center",
     alignItems: "center",
     borderRadius: 5, // Rond
-    zIndex: 2, // Ensure touch points are above pions
+    zIndex: 2, // Assurer que les points de contact sont au-dessus des pions
   },
   scoreContainer: {
     position: "absolute",
@@ -262,12 +333,29 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)", // Fond semi-transparent noir
     padding: 10, // Espacement intérieur
     borderRadius: 5, // Coins arrondis
-    zIndex: 3, // Ensure the score is above other elements
+    zIndex: 3, // Assurer que le score est au-dessus des autres éléments
   },
   scoreText: {
     color: "white", // Couleur du texte
     fontSize: 16, // Taille de la police
     fontWeight: "bold", // Police en gras
+  },
+  // Styles pour le bouton Gemini
+  buttonContainer: {
+    position: "absolute",
+    bottom: 20, // Position verticale en bas
+    alignSelf: "flex-end", // Centrer horizontalement
+    backgroundColor: "#4CAF50", // Couleur de fond du bouton
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    marginRight: 10,
+    borderRadius: 5,
+    zIndex: 3,
+  },
+  buttonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });
 
