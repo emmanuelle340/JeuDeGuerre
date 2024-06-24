@@ -28,23 +28,49 @@ const JeuEnLigne = () => {
   const [pionsCount, setPionsCount] = useState(0);
   const [touchable, setTouchable] = useState(true);
   const [touchPoints, setTouchPoints] = useState([]);
+  const [pionsAdv,setPionsAdv] = useState([]);
+  const [touchPointsAdversaire, setTouchPointsAdversaire] = useState([]);
+  
   const [monTour, setTour] = useState(true);
   const [score, setScore] = useState(0);
   const [scoreMachine, setScoreMachine] = useState(0);
   const [showMachineScore, setShowMachineScore] = useState(false);
   const [touchableMachine, settouchableMachine] = useState([]);
-  const [countTourMachine, setCountTourMachine] = useState(0);
+  const [countTour, setCountTour] = useState(0);
   const [screenWidth, setScreenWidth] = useState(Dimensions.get("window").width);
   const [screenHeight, setScreenHeight] = useState(Dimensions.get("window").height);
   const [gameOver, setGameOver] = useState(false);
   const [winner, setWinner] = useState(null); // 'Moi' or 'Machine'
   const [pionHeight, setPionHeight] = useState(screenHeight / 5); // Hauteur disponible pour chaque pion
   const [pionWidth, setPionWidth] = useState(pionHeight); // Largeur des pions, pour les garder carrés
-  const [touchedByMachine, setTouchedByMachine] = useState(null); // État pour suivre le point touché par la machine
+  const [touched, setTouched] = useState(null); // État pour suivre le point touché par la machine
   const navigation = useNavigation();
   const [peutjouer, setpeutjouer] = useState("non");
-const[adversaireNom,setAdversaireNom] = useState("");
-  useEffect(() => {
+  const [idJeu,setIdJeu] = useState("");
+  const[adversaireNom,setAdversaireNom] = useState("");
+  const[pionsAdversaire,setPionsAdversaire] = useState([]);
+  // const showToast = () => {
+  //   Toast.show({
+  //     type: 'error',
+  //     text1: ' ce n\'est pas ton tour Attendre que l\'autre joueur joue  !',
+  //     visibilityTime: 2000,
+  //     autoHide: true,
+  //   });
+  // };
+
+  // const hideToast = () => {
+  //   Toast.hide();
+  // };
+
+  // const CestTonTour = () => {
+  //   Toast.show({
+  //     type: 'success',
+  //     text1: ' C\'est ton tour',
+  //     visibilityTime: 2000,
+  //   });
+  // };
+
+useEffect(() => {
     Snackbar.show({
       text: "Placez vos pions !",
       duration: Snackbar.LENGTH_LONG, // 3 seconds
@@ -64,6 +90,49 @@ const[adversaireNom,setAdversaireNom] = useState("");
 
 
   useEffect(() => {
+    const fetch = async()=>{
+      if (idJeu !== "") {
+        try {
+          const docRef = firestore().collection("PourJeu").doc(idJeu);
+          const docSnapshot = await docRef.get();
+          
+          if (docSnapshot.exists) {
+            const data = docSnapshot.data();
+    
+            // Vérifier si MailParticipant existe
+            if (data.MailParticipant) {
+              const mailParticipants = data.MailParticipant;
+    
+              // Utiliser une boucle for...of avec async/await pour garantir que toutes les opérations asynchrones sont correctement attendues
+              for (let i = 0; i < mailParticipants.length; i++) {
+                const participant = mailParticipants[i];
+                const myInfo = await getData("userProfile");
+                const monNom = myInfo.name;
+
+                if (participant.nom != monNom) {
+                  setPionsAdv(participant.positionImages);
+                  setTouchPointsAdversaire(participant.Touchee);
+                }
+              }
+    
+              // Mettre à jour le tableau complet dans Firestore après avoir terminé les modifications
+              await docRef.update({ MailParticipant: mailParticipants });
+            } else {
+              console.log("MailParticipant array does not exist or does not have enough elements.");
+            }
+          } else {
+            console.log("No document found with the provided idJeu");
+          }
+        } catch (error) {
+          console.error("Error fetching document: ", error);
+        }
+      }
+    } 
+    fetch();
+  });
+
+
+  useEffect(() => { 
     const fetchMonNom = async () => {
       try {
         const myInfo = await getData("userProfile");
@@ -71,17 +140,20 @@ const[adversaireNom,setAdversaireNom] = useState("");
         if (monNom && pionsCount === 5) {
           const gamesRef = firestore().collection("PourJeu");
           const query = gamesRef.where("gameId", "==", GlobaleVariable.globalString);
+          
   
           const querySnapshot = await query.get();
-          const participantData = { nom: monNom, positionImages: pions };
+          const participantData = { nom: monNom, positionImages: pions , Touchee:[]};
   
           if (querySnapshot.empty) {
             const newDocumentData = {
               gameId: GlobaleVariable.globalString,
               MailParticipant: [participantData],
+              CountTour : 0, 
             };
             await gamesRef.add(newDocumentData);
             console.log("Nouveau document créé avec succès !");
+            setIdJeu(gamesRef.id);
           } else {
             querySnapshot.forEach((doc) => {
               const data = doc.data();
@@ -101,6 +173,7 @@ const[adversaireNom,setAdversaireNom] = useState("");
                 .catch((error) => {
                   console.error("Erreur lors de la mise à jour du document :", error);
                 });
+                setIdJeu(doc.id);
             });
           }
         }
@@ -112,6 +185,49 @@ const[adversaireNom,setAdversaireNom] = useState("");
     fetchMonNom();
   }, [pionsCount]);
   
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const myInfo = await getData("userProfile");
+        const monNom = myInfo.name;
+  
+        const unsubscribe = firestore()
+          .collection("PourJeu")
+          .doc(idJeu)
+          .onSnapshot((docSnapshot) => {
+            if (docSnapshot.exists) {
+              const data = docSnapshot.data();
+              if (data.MailParticipant) {
+                const opponent = data.MailParticipant.find(participant => participant.nom !== monNom);
+                if (opponent) {
+                  setPionsAdversaire(opponent.positionImages);
+                }
+              }
+            }
+          });
+        
+        // Retourne la fonction de désabonnement
+        return () => unsubscribe();
+  
+      } catch (error) {
+        console.error("Erreur lors de la récupération des données :", error);
+      }
+    };
+  
+    fetchData(); // Appel de la fonction fetchData
+  
+  }, [idJeu]);
+  
+  useEffect(() => {
+    if (score === 5 || scoreMachine === 5) {
+      setGameOver(true);
+      if (score === 5) {
+        setWinner("Moi");
+      } else {
+        setWinner("Machine");
+      }
+    }
+  }, [score, scoreMachine]);
 
   useEffect(() => {
     const gamesRef = firestore().collection("PourJeu");
@@ -123,7 +239,7 @@ const[adversaireNom,setAdversaireNom] = useState("");
         const data = change.doc.data();
         if (pionsCount === 5) {
           if (data.MailParticipant && data.MailParticipant.length >= 2) {
-            setTouchable(true);
+            //setTouchable(true);
             setShowMachineScore(true);
             setpeutjouer("oui");
           } else {
@@ -139,7 +255,47 @@ const[adversaireNom,setAdversaireNom] = useState("");
     // Cleanup: stop listening to snapshot changes on component unmount
     return () => unsubscribe();
   }, [pionsCount]); // Trigger this effect whenever pionsCount changes
-  
+
+  useEffect(() => {
+    const fetchTouchee = async () => {
+      if (idJeu !== "") {
+        try {
+          const docRef = firestore().collection("PourJeu").doc(idJeu);
+          const docSnapshot = await docRef.get();
+          
+          if (docSnapshot.exists) {
+            const data = docSnapshot.data();
+
+            // Vérifier si MailParticipant existe
+            if (data.MailParticipant) {
+              const mailParticipants = data.MailParticipant;
+
+              // Utiliser une boucle for...of avec async/await pour garantir que toutes les opérations asynchrones sont correctement attendues
+              for (const participant of mailParticipants) {
+                const myInfo = await getData("userProfile");
+                const monNom = myInfo.name;
+                // Vérifier si Touchee existe et mettre à jour
+                if (participant.nom === monNom) {
+                  participant.Touchee = touchPoints;
+                }
+              }
+
+              // Mettre à jour le tableau complet dans Firestore après avoir terminé les modifications
+              await docRef.update({ MailParticipant: mailParticipants });
+            } else {
+              console.log("MailParticipant array does not exist or does not have enough elements.");
+            }
+          } else {
+            console.log("No document found with the provided idJeu");
+          }
+        } catch (error) {
+          console.error("Error fetching document: ", error);
+        }
+      }
+    };
+
+    fetchTouchee();
+  }, [idJeu, touchPoints]);
 
   const getData = async (key) => {
     try {
@@ -150,45 +306,68 @@ const[adversaireNom,setAdversaireNom] = useState("");
     }
   };
 
-  const generateRandomNumber = () => {
-    const randomNumber = Math.random();
-    return randomNumber;
-  };
-
-  useEffect(() => {
-    if (score === 5 || scoreMachine === 5) {
-      setGameOver(true);
-      if (score === 5) {
-        setWinner("Moi");
-      } else {
-        setWinner("Machine");
+  const monId = async () => {
+    if (idJeu !== "") {
+      try {
+        const docRef = firestore().collection("PourJeu").doc(idJeu);
+        const docSnapshot = await docRef.get();
+        
+        if (docSnapshot.exists) {
+          const data = docSnapshot.data();
+  
+          // Vérifier si MailParticipant existe
+          if (data.MailParticipant) {
+            const mailParticipants = data.MailParticipant;
+  
+            // Utiliser une boucle for...of avec async/await pour garantir que toutes les opérations asynchrones sont correctement attendues
+            for (let i = 0; i < mailParticipants.length; i++) {
+              const participant = mailParticipants[i];
+              const myInfo = await getData("userProfile");
+              const monNom = myInfo.name;
+              // Vérifier si Touchee existe et mettre à jour
+              if (participant.nom === monNom) {
+                return i; // Retourner l'index du participant
+              }
+            }
+  
+            // Mettre à jour le tableau complet dans Firestore après avoir terminé les modifications
+            await docRef.update({ MailParticipant: mailParticipants });
+          } else {
+            console.log("MailParticipant array does not exist or does not have enough elements.");
+          }
+        } else {
+          console.log("No document found with the provided idJeu");
+        }
+      } catch (error) {
+        console.error("Error fetching document: ", error);
       }
     }
-  }, [score, scoreMachine]);
+  };
 
-  const checkPointMachineMatch = (touchPoint) => {
-    if (!touchableMachine || !touchableMachine[countTourMachine]) {
-      return false;
-    }
+  
 
-    for (let i = 0; i < pions.length; i++) {
-      const pion = pions[i];
+  const checkPointMatch = (touchPoint, points) => {
+    for (let i = 0; i < points.length; i++) {
+      const pion = points[i];
+      const pionX = pion.normalizedX+ pionWidth / 2;
+      const pionY = pion.normalizedY + pionHeight / 2;
+  
       if (
-        touchPoint.x >= pion.x &&
-        touchPoint.x <= pion.x + pionWidth &&
-        touchPoint.y >= pion.y &&
-        touchPoint.y <= pion.y + pionHeight
+        touchPoint.x >= pionX - pionWidth / 2 &&
+        touchPoint.x <= pionX + pionWidth / 2 &&
+        touchPoint.y >= pionY - pionHeight / 2 &&
+        touchPoint.y <= pionY + pionHeight / 2
       ) {
-        setTouchedByMachine(pion);
-        pions.splice(i, 1);
+        setTouched(pion);
+        points.splice(i, 1);
         return true;
       }
     }
-
     return false;
   };
+  
 
-  const handleBoardPress = (event) => {
+  const handleBoardPress = async (event) => {
     if (pionsCount >= 5) {
       if (touchable) {
         const { locationX, locationY } = event.nativeEvent;
@@ -205,25 +384,28 @@ const[adversaireNom,setAdversaireNom] = useState("");
         };
 
         setTouchPoints((prevPoints) => [...prevPoints, newTouchPoint]);
-
-        if (checkPointMachineMatch(touchableMachine[countTourMachine])) {
+        setCountTour(previousCount=> previousCount+1);
+        console.log(pionsAdv);
+        if (checkPointMatch(newTouchPoint, pionsAdv)) {
           setScoreMachine((prevScore) => prevScore + 1);
           setTouchedByMachine(touchableMachine[countTourMachine]);
           Snackbar.show({
-            text: "La machine vous a touché !",
+            text: "Vous venez de perdre un piont!",
             duration: Snackbar.LENGTH_LONG,
           });
         } else {
           Snackbar.show({
-            text: "Raté !",
+            text: "Raté ! ",
             duration: Snackbar.LENGTH_LONG,
           });
         }
 
-        setTouchable(false);
+        //setTouchable(false);
         
 
-        setCountTourMachine((previousCount) => previousCount + 1);
+        //setCountTourMachine((previousCount) => previousCount + 1);
+      }else{
+        setCountTour(previousCount=> previousCount+1);
       }
       return;
     }
@@ -272,19 +454,19 @@ const[adversaireNom,setAdversaireNom] = useState("");
     setScoreMachine(0);
     setShowMachineScore(false);
     settouchableMachine([]);
-    setCountTourMachine(0);
+    //setCountTourMachine(0);
     setScreenWidth(Dimensions.get("window").width);
     setScreenHeight(Dimensions.get("window").height);
     setPionHeight(screenHeight / 5);
     setPionWidth(pionHeight);
-    setTouchedByMachine(null);
+    setTouched(null);
   };
 
   return (
 <View style={styles.container}>
   {peutjouer === "pas encore" ? (
     <View style={styles.waitingContainer}>
-      <Text style={styles.waitingText}>En attente des autres joueurs</Text>
+      <Text style={styles.waitingText}> L'autre joueur n'a pas encore place ses pions</Text>
     </View>
   ) : (
     <>
@@ -312,7 +494,7 @@ const[adversaireNom,setAdversaireNom] = useState("");
                   left: pion.x,
                   top: pion.y,
                   opacity:
-                    touchedByMachine && touchedByMachine.id === pion.id ? 0 : 1,
+                    touched && touched.id === pion.id ? 0 : 1,
                 },
               ]}
             />
