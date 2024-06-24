@@ -43,7 +43,7 @@ const JeuEnLigne = () => {
   const [touchedByMachine, setTouchedByMachine] = useState(null); // État pour suivre le point touché par la machine
   const navigation = useNavigation();
   const [peutjouer, setpeutjouer] = useState("non");
-  //const [aAppuyeButton, setaAppuyerButton] = useState();
+const[adversaireNom,setAdversaireNom] = useState("");
   useEffect(() => {
     Snackbar.show({
       text: "Placez vos pions !",
@@ -66,32 +66,31 @@ const JeuEnLigne = () => {
   useEffect(() => {
     const fetchMonNom = async () => {
       try {
-        const myInfo = await getData("userProfile"); // Récupérer monNom depuis AsyncStorage
-        const monNom = myInfo?.name;
+        const myInfo = await getData("userProfile");
+        const monNom = myInfo.name;
         if (monNom && pionsCount === 5) {
           const gamesRef = firestore().collection("PourJeu");
           const query = gamesRef.where("gameId", "==", GlobaleVariable.globalString);
-
-          // Vérifier si un document existe avec le gameId spécifié
+  
           const querySnapshot = await query.get();
           const participantData = { nom: monNom, positionImages: pions };
-
+  
           if (querySnapshot.empty) {
-            // Aucun document trouvé, créer un nouveau document
             const newDocumentData = {
               gameId: GlobaleVariable.globalString,
               MailParticipant: [participantData],
-              // Autres champs nécessaires à votre document
             };
-
             await gamesRef.add(newDocumentData);
             console.log("Nouveau document créé avec succès !");
           } else {
-            // Document existant trouvé, mettre à jour le tableau MailParticipant
             querySnapshot.forEach((doc) => {
+              const data = doc.data();
+              const existingParticipants = data.MailParticipant;
+              const opponent = existingParticipants.find(participant => participant.nom !== monNom);
+              if (opponent) {
+                setAdversaireNom(opponent.nom);
+              }
               const docRef = gamesRef.doc(doc.id);
-
-              // Mettre à jour le tableau MailParticipant avec monNom et la position des images
               docRef
                 .update({
                   MailParticipant: firestore.FieldValue.arrayUnion(participantData),
@@ -109,9 +108,10 @@ const JeuEnLigne = () => {
         console.error("Erreur lors de la récupération de monNom depuis AsyncStorage :", error);
       }
     };
-
+  
     fetchMonNom();
   }, [pionsCount]);
+  
 
   useEffect(() => {
     const gamesRef = firestore().collection("PourJeu");
@@ -221,12 +221,6 @@ const JeuEnLigne = () => {
         }
 
         setTouchable(false);
-        Toast.show({
-          type: "success",
-          position: "top",
-          text1: "La machine joue maintenant",
-          visibilityTime: 5000,
-        });
         
 
         setCountTourMachine((previousCount) => previousCount + 1);
@@ -296,10 +290,11 @@ const JeuEnLigne = () => {
     <>
       {showMachineScore && (
         <View style={styles.scoreContainer}>
-          <Text style={styles.scoreText}>
-            Score: Moi {score} - {scoreMachine} Machine
-          </Text>
-        </View>
+        <Text style={styles.scoreText}>
+          Score: Moi {score} - {scoreMachine} {adversaireNom} 
+        </Text>
+      </View>
+      
       )}
 
       {/* Plateau de jeu */}
