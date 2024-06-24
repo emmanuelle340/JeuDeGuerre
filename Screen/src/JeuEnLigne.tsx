@@ -12,14 +12,16 @@ import {
 import Snackbar from "react-native-snackbar";
 import Toast from "react-native-toast-message";
 import { useNavigation } from "@react-navigation/native";
+import firestore from "@react-native-firebase/firestore";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Importez les images des pions
 import Reine from "../assets/soldat.png";
 import Soldat from "../assets/soldat.png";
-import ToucheImage from "../assets/reine_morte.png"; // Image pour le point touché par la machine
+import GlobaleVariable from "../../GlobaleVariable";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const PageDeJeu = () => {
+const JeuEnLigne = () => {
   const [pionsMachine, setPionsMachine] = useState([]);
   const [pions, setPions] = useState([]);
   const [pionsCount, setPionsCount] = useState(0);
@@ -38,9 +40,8 @@ const PageDeJeu = () => {
   const [pionHeight, setPionHeight] = useState(screenHeight / 5); // Hauteur disponible pour chaque pion
   const [pionWidth, setPionWidth] = useState(pionHeight); // Largeur des pions, pour les garder carrés
   const [touchedByMachine, setTouchedByMachine] = useState(null); // État pour suivre le point touché par la machine
-
   const navigation = useNavigation();
-
+  const nameAdversaire = 
   useEffect(() => {
     Snackbar.show({
       text: "Placez vos pions !",
@@ -49,14 +50,68 @@ const PageDeJeu = () => {
   }, []);
 
   useEffect(() => {
-    if (pionsCount === 5) {
-      generateRandomPoints();
-      Snackbar.show({
-        text: "Commencez à jouer, c'est votre tour",
-        duration: Snackbar.LENGTH_LONG, // 3 seconds
-      });
-    }
+    const fetchMonNom = async () => {
+      try {
+        const myInfo = await getData("userProfile"); // Récupérer monNom depuis AsyncStorage
+        const monNom = myInfo?.name;
+        if (monNom && pionsCount === 5) {
+          const gamesRef = firestore().collection("PourJeu");
+          const query = gamesRef.where("gameId", "==", GlobaleVariable.globalString);
+
+          // Vérifier si un document existe avec le gameId spécifié
+          const querySnapshot = await query.get();
+          const participantData = { nom: monNom, positionImages: pions };
+
+          if (querySnapshot.empty) {
+            // Aucun document trouvé, créer un nouveau document
+            const newDocumentData = {
+              gameId: GlobaleVariable.globalString,
+              MailParticipant: [participantData],
+              // Autres champs nécessaires à votre document
+            };
+
+            await gamesRef.add(newDocumentData);
+            console.log("Nouveau document créé avec succès !");
+          } else {
+            // Document existant trouvé, mettre à jour le tableau MailParticipant
+            querySnapshot.forEach((doc) => {
+              const docRef = gamesRef.doc(doc.id);
+
+              // Mettre à jour le tableau MailParticipant avec monNom et la position des images
+              docRef
+                .update({
+                  MailParticipant: firestore.FieldValue.arrayUnion(participantData),
+                })
+                .then(() => {
+                  console.log("Document mis à jour avec succès !");
+                })
+                .catch((error) => {
+                  console.error("Erreur lors de la mise à jour du document :", error);
+                });
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Erreur lors de la récupération de monNom depuis AsyncStorage :", error);
+      }
+    };
+
+    fetchMonNom();
   }, [pionsCount]);
+
+  const getData = async (key) => {
+    try {
+      const jsonValue = await AsyncStorage.getItem(key);
+      return jsonValue != null ? JSON.parse(jsonValue) : null;
+    } catch (e) {
+      console.error("Failed to fetch data", e);
+    }
+  };
+
+  const generateRandomNumber = () => {
+    const randomNumber = Math.random();
+    return randomNumber;
+  };
 
   useEffect(() => {
     if (score === 5 || scoreMachine === 5) {
@@ -69,67 +124,13 @@ const PageDeJeu = () => {
     }
   }, [score, scoreMachine]);
 
-  const generateRandomPoints = () => {
-    const points = [];
-    for (let i = 0; i < 5; i++) {
-      const randomX = Math.random();
-      const randomY = Math.random();
-      points.push({
-        id: i + 1,
-        x: randomX * screenWidth - pionWidth / 2,
-        y: (1 - randomY) * screenHeight - pionHeight / 2,
-        normalizedX: randomX.toFixed(2),
-        normalizedY: randomY.toFixed(2),
-        type: i === 0 ? "Reine" : "Soldat",
-      });
-    }
-    setPionsMachine(points);
-    setTouchable(true);
-    Snackbar.show({
-      text: "C'est votre tour, jouez !",
-      duration: Snackbar.LENGTH_LONG,
-    });
-  };
-
-  const generatePoints = () => {
-    const points = [];
-    const columns = Math.ceil(screenWidth / pionWidth);
-    const rows = Math.ceil(screenHeight / pionHeight);
-
-    for (let i = 0; i < columns; i++) {
-      for (let j = 0; j < rows; j++) {
-        points.push({
-          x: i * pionWidth,
-          y: j * pionHeight,
-          type: "Soldat",
-        });
-      }
-    }
-    settouchableMachine(points);
-  };
-
-  const checkPointMatch = (touchPoint) => {
-    for (let i = 0; i < pionsMachine.length; i++) {
-      const pion = pionsMachine[i];
-      if (
-        touchPoint.x >= pion.x &&
-        touchPoint.x <= pion.x + pionWidth &&
-        touchPoint.y >= pion.y &&
-        touchPoint.y <= pion.y + pionHeight
-      ) {
-        return true;
-      }
-    }
-    return false;
-  };
-
   const checkPointMachineMatch = (touchPoint) => {
     if (!touchableMachine || !touchableMachine[countTourMachine]) {
       return false;
     }
 
     for (let i = 0; i < pions.length; i++) {
-      pion = pions[i];
+      const pion = pions[i];
       if (
         touchPoint.x >= pion.x &&
         touchPoint.x <= pion.x + pionWidth &&
@@ -162,14 +163,14 @@ const PageDeJeu = () => {
         };
 
         setTouchPoints((prevPoints) => [...prevPoints, newTouchPoint]);
-        const isPointMatched = checkPointMatch(newTouchPoint);
 
-        if (isPointMatched) {
+        if (checkPointMachineMatch(touchableMachine[countTourMachine])) {
+          setScoreMachine((prevScore) => prevScore + 1);
+          setTouchedByMachine(touchableMachine[countTourMachine]);
           Snackbar.show({
-            text: "Touché ! Bonne direction pour vous !",
+            text: "La machine vous a touché !",
             duration: Snackbar.LENGTH_LONG,
           });
-          setScore((prevScore) => prevScore + 1);
         } else {
           Snackbar.show({
             text: "Raté !",
@@ -186,19 +187,7 @@ const PageDeJeu = () => {
         });
         generatePoints();
 
-        if (checkPointMachineMatch(touchableMachine[countTourMachine])) {
-          setScoreMachine((prevScore) => prevScore + 1);
-          setTouchedByMachine(touchableMachine[countTourMachine]);
-          Snackbar.show({
-            text: "La machine vous a touché !",
-            duration: Snackbar.LENGTH_LONG,
-          });
-        }
         setCountTourMachine((previousCount) => previousCount + 1);
-
-        setTimeout(() => {
-          setTouchable(true);
-        }, 5000);
       }
       return;
     }
@@ -306,7 +295,7 @@ const PageDeJeu = () => {
         </View>
       </TouchableWithoutFeedback>
       {showMachineScore && (
-        <TouchableOpacity style={styles.buttonContainer} onPress={()=>handleGemini}>
+        <TouchableOpacity style={styles.buttonContainer} onPress={handleGemini}>
           <Text style={styles.buttonText}>Demandez à Gemini</Text>
         </TouchableOpacity>
       )}
@@ -424,4 +413,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PageDeJeu;
+export default JeuEnLigne;

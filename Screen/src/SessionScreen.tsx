@@ -4,6 +4,7 @@ import firestore from '@react-native-firebase/firestore';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
+import GlobaleVariable from '../../GlobaleVariable';
 
 const Session = () => {
   const [imageUrl, setImageUrl] = useState("");
@@ -42,6 +43,9 @@ const Session = () => {
             });
             deviceRemoved = true;
           }
+          // if(gameData.CreatedBy && gameData.CreatedBy.includes(getData("userProfile").name){
+
+          // }
         }
   
         if (deviceRemoved) {
@@ -114,8 +118,8 @@ const Session = () => {
         GameParticipantDeviceId: [storedProfile.Email],
         gameName: generateRandomName(),
       });
-
-      navigation.navigate("Attente");
+      GlobaleVariable.globalString = gameRef.id;
+      navigation.navigate("Attente",{gameId: gameRef.id});
       console.log(`Game created with ID: ${gameRef.id}`);
     } catch (error) {
       console.error("Error creating game: ", error);

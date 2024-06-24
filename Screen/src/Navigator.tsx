@@ -5,6 +5,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import SalleAttente from "./SalleAttente";
 import ListeDesParties from "./ListePartie";
 import PageDeJeu from "./PageDeJeu";
+import JeuEnLigne from "./JeuEnLigne";
 
 const Stack = createStackNavigator();
 
@@ -19,6 +20,7 @@ function MyStack() {
         <Stack.Screen name="Attente" component={SalleAttente} />
         <Stack.Screen name="Liste"    component={ListeDesParties} />
         <Stack.Screen name="PageDeJeu" options={{ headerShown: false } } component={PageDeJeu} />
+        <Stack.Screen name="Jeu" options={{ headerShown: false } } component={JeuEnLigne} />
       </Stack.Navigator>
     </NavigationContainer>
   );

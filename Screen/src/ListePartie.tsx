@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Text, View, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import firestore from '@react-native-firebase/firestore';
+import firestore, {doc} from '@react-native-firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Toast from 'react-native-toast-message';
+import GlobaleVariable from '../../GlobaleVariable';
 
 const ListeDesParties = () => {
   const navigation = useNavigation();
@@ -32,8 +32,8 @@ const ListeDesParties = () => {
 
         const gamesCollection = firestore().collection('Games');
         const querySnapshot = await gamesCollection.get();
-        const storedProfile = await getData("userProfile");
-        const deviceId = storedProfile.Email;
+        const deviceId = await getData("userProfile")
+  
         let deviceRemoved = false;
   
         for (const doc of querySnapshot.docs) {
@@ -81,6 +81,7 @@ const ListeDesParties = () => {
           `Element '${storedProfile.Email}' added to attribute 'GameParticipantDeviceId' in document with ID '${docId}'.`
         );
 
+        GlobaleVariable.globalString= docId;
         // Naviguer vers la page "Attente" avec l'ID de la partie en paramètre
         navigation.navigate('Attente', { gameId: docId });
 
@@ -122,7 +123,6 @@ const ListeDesParties = () => {
         renderItem={renderItem}
         keyExtractor={item => item.id}
       />
-      <Toast ref={(ref) => Toast.setRef(ref)} />
     </View>
   );
 };
