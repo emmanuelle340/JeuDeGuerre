@@ -8,6 +8,7 @@ import {
   Text,
   TouchableOpacity,
   Modal,
+  BackHandler
 } from "react-native";
 import Snackbar from "react-native-snackbar";
 import Toast from "react-native-toast-message";
@@ -41,13 +42,26 @@ const JeuEnLigne = () => {
   const [pionWidth, setPionWidth] = useState(pionHeight); // Largeur des pions, pour les garder carrés
   const [touchedByMachine, setTouchedByMachine] = useState(null); // État pour suivre le point touché par la machine
   const navigation = useNavigation();
-  const nameAdversaire = 
+  const [peutjouer, setpeutjouer] = useState("non");
+  //const [aAppuyeButton, setaAppuyerButton] = useState();
   useEffect(() => {
     Snackbar.show({
       text: "Placez vos pions !",
       duration: Snackbar.LENGTH_LONG, // 3 seconds
     });
   }, []);
+
+  useEffect(() => {
+    const backAction = () => {
+      navigation.navigate('Session');
+      return true; // Prevent default behavior
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+
+    return () => backHandler.remove();
+  }, [navigation]);
+
 
   useEffect(() => {
     const fetchMonNom = async () => {
@@ -98,6 +112,34 @@ const JeuEnLigne = () => {
 
     fetchMonNom();
   }, [pionsCount]);
+
+  useEffect(() => {
+    const gamesRef = firestore().collection("PourJeu");
+    const query = gamesRef.where("gameId", "==", GlobaleVariable.globalString);
+  
+    // Function to handle snapshot changes
+    const handleSnapshot = (snapshot) => {
+      snapshot.docChanges().forEach(change => {
+        const data = change.doc.data();
+        if (pionsCount === 5) {
+          if (data.MailParticipant && data.MailParticipant.length >= 2) {
+            setTouchable(true);
+            setShowMachineScore(true);
+            setpeutjouer("oui");
+          } else {
+            setpeutjouer("pas encore");
+          }
+        }
+      });
+    };
+  
+    // Start listening to snapshot changes
+    const unsubscribe = query.onSnapshot(handleSnapshot);
+  
+    // Cleanup: stop listening to snapshot changes on component unmount
+    return () => unsubscribe();
+  }, [pionsCount]); // Trigger this effect whenever pionsCount changes
+  
 
   const getData = async (key) => {
     try {
@@ -185,7 +227,7 @@ const JeuEnLigne = () => {
           text1: "La machine joue maintenant",
           visibilityTime: 5000,
         });
-        generatePoints();
+        
 
         setCountTourMachine((previousCount) => previousCount + 1);
       }
@@ -208,10 +250,7 @@ const JeuEnLigne = () => {
 
     setPions((prevPions) => [...prevPions, newPion]);
     setPionsCount((prevCount) => prevCount + 1);
-    if (pionsCount + 1 === 5) {
-      setTouchable(true);
-      setShowMachineScore(true);
-    }
+ 
   };
 
   const handleGemini = async () => {
@@ -248,7 +287,13 @@ const JeuEnLigne = () => {
   };
 
   return (
-    <View style={styles.container}>
+<View style={styles.container}>
+  {peutjouer === "pas encore" ? (
+    <View style={styles.waitingContainer}>
+      <Text style={styles.waitingText}>En attente des autres joueurs</Text>
+    </View>
+  ) : (
+    <>
       {showMachineScore && (
         <View style={styles.scoreContainer}>
           <Text style={styles.scoreText}>
@@ -327,7 +372,10 @@ const JeuEnLigne = () => {
         </View>
       </Modal>
       <Toast ref={(ref) => Toast.setRef(ref)} />
-    </View>
+    </>
+  )}
+</View>
+
   );
 };
 
@@ -410,6 +458,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 5,
+  },
+  waitingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'white',
+  },
+  waitingText: {
+    fontSize: 18,
+    color: 'black',
   },
 });
 

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Text, View, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
 import GlobaleVariable from '../../GlobaleVariable';
@@ -24,48 +24,54 @@ const Session = () => {
     fetchImageUrl();
   }, []);
 
-  useEffect(() => {
-    const handleLeaveGame = async () => {
-      try {
+  useFocusEffect(
+    useCallback(() => {
+      const handleLeaveGame = async () => {
+        try {
+          const gamesCollection = firestore().collection('Games');
+          const querySnapshot = await gamesCollection.get();
+          const storedProfile = await getData("userProfile");
+          const deviceId = storedProfile.Email;
+          let deviceRemoved = false;
 
-        const gamesCollection = firestore().collection('Games');
-        const querySnapshot = await gamesCollection.get();
-        const storedProfile = await getData("userProfile");
-        const deviceId = storedProfile.Email;
-        let deviceRemoved = false;
-  
-        for (const doc of querySnapshot.docs) {
-          const gameData = doc.data();
-  
-          if (gameData.GameParticipantDeviceId && gameData.GameParticipantDeviceId.includes(deviceId)) {
-            await doc.ref.update({
-              GameParticipantDeviceId: firestore.FieldValue.arrayRemove(deviceId),
-            });
-            deviceRemoved = true;
+          for (const doc of querySnapshot.docs) {
+            const gameData = doc.data();
+
+            if (gameData.GameParticipantDeviceId && gameData.GameParticipantDeviceId.includes(deviceId)) {
+              await doc.ref.update({
+                GameParticipantDeviceId: firestore.FieldValue.arrayRemove(deviceId),
+              });
+              deviceRemoved = true;
+            }
+            // if(gameData.CreatedBy && gameData.CreatedBy.includes(getData("userProfile").name){
+
+            // }
           }
-          // if(gameData.CreatedBy && gameData.CreatedBy.includes(getData("userProfile").name){
 
-          // }
+          if (deviceRemoved) {
+            Toast.show({
+              type: 'success',
+              text1: 'Success',
+              text2: 'You have left the game!',
+            });
+          } else {
+            //console.log("je suis ici ohhh")
+          }
+        } catch (error) {
+          console.error("Error leaving game: ", error);
+          console.log('An error occurred while trying to leave the game.')
         }
-  
-        if (deviceRemoved) {
-          Toast.show({
-            type: 'success',
-            text1: 'Success',
-            text2: 'You have left the game!',
-          });
-        } else {
-          //console.log("je suis ici ohhh")
-        }
-      } catch (error) {
-        console.error("Error leaving game: ", error);
-        console.log('An error occurred while trying to leave the game.')
-        
-      }
-    };
-  
-    handleLeaveGame();
-  }, []); 
+      };
+
+      handleLeaveGame();
+
+      // Optionally, return a cleanup function if needed
+      return () => {
+        // cleanup if necessary
+      };
+    }, [])
+  );
+
 
 
   const handleCreateGame = () => {
