@@ -8,12 +8,12 @@ import {
   Text,
   TouchableOpacity,
   Modal,
-  BackHandler
+  BackHandler,
 } from "react-native";
 import Snackbar from "react-native-snackbar";
 import Toast from "react-native-toast-message";
 import { useNavigation } from "@react-navigation/native";
-import firestore from "@react-native-firebase/firestore";
+import firestore, { firebase } from "@react-native-firebase/firestore";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Importez les images des pions
@@ -28,17 +28,21 @@ const JeuEnLigne = () => {
   const [pionsCount, setPionsCount] = useState(0);
   const [touchable, setTouchable] = useState(true);
   const [touchPoints, setTouchPoints] = useState([]);
-  const [pionsAdv,setPionsAdv] = useState([]);
+  const [pionsAdv, setPionsAdv] = useState([]);
   const [touchPointsAdversaire, setTouchPointsAdversaire] = useState([]);
-  
+
   const [monTour, setTour] = useState(true);
   const [score, setScore] = useState(0);
   const [scoreMachine, setScoreMachine] = useState(0);
   const [showMachineScore, setShowMachineScore] = useState(false);
   const [touchableMachine, settouchableMachine] = useState([]);
   const [countTour, setCountTour] = useState(0);
-  const [screenWidth, setScreenWidth] = useState(Dimensions.get("window").width);
-  const [screenHeight, setScreenHeight] = useState(Dimensions.get("window").height);
+  const [screenWidth, setScreenWidth] = useState(
+    Dimensions.get("window").width
+  );
+  const [screenHeight, setScreenHeight] = useState(
+    Dimensions.get("window").height
+  );
   const [gameOver, setGameOver] = useState(false);
   const [winner, setWinner] = useState(null); // 'Moi' or 'Machine'
   const [pionHeight, setPionHeight] = useState(screenHeight / 5); // Hauteur disponible pour chaque pion
@@ -46,110 +50,96 @@ const JeuEnLigne = () => {
   const [touched, setTouched] = useState(null); // État pour suivre le point touché par la machine
   const navigation = useNavigation();
   const [peutjouer, setpeutjouer] = useState("non");
-  const [idJeu,setIdJeu] = useState("");
-  const[adversaireNom,setAdversaireNom] = useState("");
-  const[pionsAdversaire,setPionsAdversaire] = useState([]);
-  // const showToast = () => {
-  //   Toast.show({
-  //     type: 'error',
-  //     text1: ' ce n\'est pas ton tour Attendre que l\'autre joueur joue  !',
-  //     visibilityTime: 2000,
-  //     autoHide: true,
-  //   });
-  // };
+  const [idJeu, setIdJeu] = useState("");
+  const [adversaireNom, setAdversaireNom] = useState("");
+  const [pionsAdversaire, setPionsAdversaire] = useState([]);
+  const [monNom, setMonNom] = useState("");
+  const [premierPassage, setPremierPassage] = useState(false);
 
-  // const hideToast = () => {
-  //   Toast.hide();
-  // };
+  useEffect(() => {
+    const Maj = async () => {
+      if (premierPassage ) {
+        console.log("Setting up Firestore listener for pions update");
 
-  // const CestTonTour = () => {
-  //   Toast.show({
-  //     type: 'success',
-  //     text1: ' C\'est ton tour',
-  //     visibilityTime: 2000,
-  //   });
-  // };
+        const gamesRef = firestore().collection("PourJeu");
+        const query = gamesRef.where("gameId", "==", GlobaleVariable.globalString);
+    
+        const unsubscribe = query.onSnapshot((snapshot) => {
+          snapshot.docChanges().forEach((change) => {
+            const data = change.doc.data();
+            if (pionsCount === 5) {
+              if (data.MailParticipant && data.MailParticipant.length >= 2) {
+                setTouchable(true);
+                setShowMachineScore(true);    
+                const opponent = data.MailParticipant.find(
+                  (participant) => participant.nom === monNom
+                );
+                if (opponent) {
+                  const tmp = pions
+                  setPions(opponent.positionImages)
+                  if(pions.length != tmp.length)   setScoreMachine(prev=>prev+1);
+                }
+              } else {
+                
+              }
+            }
+          });
+        });
+    
+        return () => unsubscribe();
+      }
+    };
 
-useEffect(() => {
+    Maj();
+  }, [premierPassage, idJeu, monNom]);
+
+  useEffect(() => {
     Snackbar.show({
       text: "Placez vos pions !",
       duration: Snackbar.LENGTH_LONG, // 3 seconds
     });
+    const recupNom = async () => {
+      const myInfo = await getData("userProfile");
+      setMonNom(myInfo.name);
+    };
+    recupNom();
   }, []);
 
   useEffect(() => {
     const backAction = () => {
-      navigation.navigate('Session');
+      navigation.navigate("Session");
       return true; // Prevent default behavior
     };
 
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      backAction
+    );
 
     return () => backHandler.remove();
   }, [navigation]);
 
-
   useEffect(() => {
-    const fetch = async()=>{
-      if (idJeu !== "") {
-        try {
-          const docRef = firestore().collection("PourJeu").doc(idJeu);
-          const docSnapshot = await docRef.get();
-          
-          if (docSnapshot.exists) {
-            const data = docSnapshot.data();
-    
-            // Vérifier si MailParticipant existe
-            if (data.MailParticipant) {
-              const mailParticipants = data.MailParticipant;
-    
-              // Utiliser une boucle for...of avec async/await pour garantir que toutes les opérations asynchrones sont correctement attendues
-              for (let i = 0; i < mailParticipants.length; i++) {
-                const participant = mailParticipants[i];
-                const myInfo = await getData("userProfile");
-                const monNom = myInfo.name;
-
-                if (participant.nom != monNom) {
-                  setPionsAdv(participant.positionImages);
-                  setTouchPointsAdversaire(participant.Touchee);
-                }
-              }
-    
-              // Mettre à jour le tableau complet dans Firestore après avoir terminé les modifications
-              await docRef.update({ MailParticipant: mailParticipants });
-            } else {
-              console.log("MailParticipant array does not exist or does not have enough elements.");
-            }
-          } else {
-            console.log("No document found with the provided idJeu");
-          }
-        } catch (error) {
-          console.error("Error fetching document: ", error);
-        }
-      }
-    } 
-    fetch();
-  });
-
-
-  useEffect(() => { 
     const fetchMonNom = async () => {
       try {
-        const myInfo = await getData("userProfile");
-        const monNom = myInfo.name;
-        if (monNom && pionsCount === 5) {
+        if (monNom != "" && !premierPassage && pionsCount === 5) {
           const gamesRef = firestore().collection("PourJeu");
-          const query = gamesRef.where("gameId", "==", GlobaleVariable.globalString);
-          
-  
+          const query = gamesRef.where(
+            "gameId",
+            "==",
+            GlobaleVariable.globalString
+          );
+
           const querySnapshot = await query.get();
-          const participantData = { nom: monNom, positionImages: pions , Touchee:[]};
-  
+          const participantData = {
+            nom: monNom,
+            positionImages: pions,
+          };
+
           if (querySnapshot.empty) {
             const newDocumentData = {
               gameId: GlobaleVariable.globalString,
               MailParticipant: [participantData],
-              CountTour : 0, 
             };
             await gamesRef.add(newDocumentData);
             console.log("Nouveau document créé avec succès !");
@@ -158,39 +148,46 @@ useEffect(() => {
             querySnapshot.forEach((doc) => {
               const data = doc.data();
               const existingParticipants = data.MailParticipant;
-              const opponent = existingParticipants.find(participant => participant.nom !== monNom);
+              const opponent = existingParticipants.find(
+                (participant) => participant.nom !== monNom
+              );
               if (opponent) {
                 setAdversaireNom(opponent.nom);
               }
               const docRef = gamesRef.doc(doc.id);
               docRef
                 .update({
-                  MailParticipant: firestore.FieldValue.arrayUnion(participantData),
+                  MailParticipant:
+                    firestore.FieldValue.arrayUnion(participantData),
                 })
                 .then(() => {
+                  setIdJeu(docRef.id);
                   console.log("Document mis à jour avec succès !");
                 })
                 .catch((error) => {
-                  console.error("Erreur lors de la mise à jour du document :", error);
+                  console.error(
+                    "Erreur lors de la mise à jour du document :",
+                    error
+                  );
                 });
-                setIdJeu(doc.id);
             });
           }
+          setPremierPassage(true);
         }
       } catch (error) {
-        console.error("Erreur lors de la récupération de monNom depuis AsyncStorage :", error);
+        console.error(
+          "Erreur lors de la récupération de monNom depuis AsyncStorage :",
+          error
+        );
       }
     };
-  
+
     fetchMonNom();
   }, [pionsCount]);
-  
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const myInfo = await getData("userProfile");
-        const monNom = myInfo.name;
-  
         const unsubscribe = firestore()
           .collection("PourJeu")
           .doc(idJeu)
@@ -198,33 +195,33 @@ useEffect(() => {
             if (docSnapshot.exists) {
               const data = docSnapshot.data();
               if (data.MailParticipant) {
-                const opponent = data.MailParticipant.find(participant => participant.nom !== monNom);
+                const opponent = data.MailParticipant.find(
+                  (participant) => participant.nom !== monNom
+                );
                 if (opponent) {
                   setPionsAdversaire(opponent.positionImages);
                 }
               }
             }
           });
-        
+
         // Retourne la fonction de désabonnement
         return () => unsubscribe();
-  
       } catch (error) {
         console.error("Erreur lors de la récupération des données :", error);
       }
     };
-  
+
     fetchData(); // Appel de la fonction fetchData
-  
-  }, [idJeu]);
-  
+  });
+
   useEffect(() => {
     if (score === 5 || scoreMachine === 5) {
       setGameOver(true);
       if (score === 5) {
         setWinner("Moi");
       } else {
-        setWinner("Machine");
+        if (adversaireNom) setWinner(adversaireNom);
       }
     }
   }, [score, scoreMachine]);
@@ -232,10 +229,10 @@ useEffect(() => {
   useEffect(() => {
     const gamesRef = firestore().collection("PourJeu");
     const query = gamesRef.where("gameId", "==", GlobaleVariable.globalString);
-  
+
     // Function to handle snapshot changes
     const handleSnapshot = (snapshot) => {
-      snapshot.docChanges().forEach(change => {
+      snapshot.docChanges().forEach((change) => {
         const data = change.doc.data();
         if (pionsCount === 5) {
           if (data.MailParticipant && data.MailParticipant.length >= 2) {
@@ -248,54 +245,13 @@ useEffect(() => {
         }
       });
     };
-  
+
     // Start listening to snapshot changes
     const unsubscribe = query.onSnapshot(handleSnapshot);
-  
+
     // Cleanup: stop listening to snapshot changes on component unmount
     return () => unsubscribe();
   }, [pionsCount]); // Trigger this effect whenever pionsCount changes
-
-  useEffect(() => {
-    const fetchTouchee = async () => {
-      if (idJeu !== "") {
-        try {
-          const docRef = firestore().collection("PourJeu").doc(idJeu);
-          const docSnapshot = await docRef.get();
-          
-          if (docSnapshot.exists) {
-            const data = docSnapshot.data();
-
-            // Vérifier si MailParticipant existe
-            if (data.MailParticipant) {
-              const mailParticipants = data.MailParticipant;
-
-              // Utiliser une boucle for...of avec async/await pour garantir que toutes les opérations asynchrones sont correctement attendues
-              for (const participant of mailParticipants) {
-                const myInfo = await getData("userProfile");
-                const monNom = myInfo.name;
-                // Vérifier si Touchee existe et mettre à jour
-                if (participant.nom === monNom) {
-                  participant.Touchee = touchPoints;
-                }
-              }
-
-              // Mettre à jour le tableau complet dans Firestore après avoir terminé les modifications
-              await docRef.update({ MailParticipant: mailParticipants });
-            } else {
-              console.log("MailParticipant array does not exist or does not have enough elements.");
-            }
-          } else {
-            console.log("No document found with the provided idJeu");
-          }
-        } catch (error) {
-          console.error("Error fetching document: ", error);
-        }
-      }
-    };
-
-    fetchTouchee();
-  }, [idJeu, touchPoints]);
 
   const getData = async (key) => {
     try {
@@ -306,66 +262,104 @@ useEffect(() => {
     }
   };
 
-  const monId = async () => {
-    if (idJeu !== "") {
-      try {
-        const docRef = firestore().collection("PourJeu").doc(idJeu);
-        const docSnapshot = await docRef.get();
-        
-        if (docSnapshot.exists) {
-          const data = docSnapshot.data();
-  
-          // Vérifier si MailParticipant existe
-          if (data.MailParticipant) {
-            const mailParticipants = data.MailParticipant;
-  
-            // Utiliser une boucle for...of avec async/await pour garantir que toutes les opérations asynchrones sont correctement attendues
-            for (let i = 0; i < mailParticipants.length; i++) {
-              const participant = mailParticipants[i];
-              const myInfo = await getData("userProfile");
-              const monNom = myInfo.name;
-              // Vérifier si Touchee existe et mettre à jour
-              if (participant.nom === monNom) {
-                return i; // Retourner l'index du participant
-              }
+  useEffect(() => {
+    const gamesRef = firestore().collection("PourJeu");
+    const query = gamesRef.where("gameId", "==", GlobaleVariable.globalString);
+
+    const unsubscribe = query.onSnapshot((snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        const data = change.doc.data();
+        if (pionsCount === 5) {
+          if (data.MailParticipant && data.MailParticipant.length >= 2) {
+            setTouchable(true);
+            setShowMachineScore(true);
+            setpeutjouer("oui");
+
+            const opponent = data.MailParticipant.find(
+              (participant) => participant.nom !== monNom
+            );
+            if (opponent) {
+              setAdversaireNom(opponent.nom);
             }
-  
-            // Mettre à jour le tableau complet dans Firestore après avoir terminé les modifications
-            await docRef.update({ MailParticipant: mailParticipants });
           } else {
-            console.log("MailParticipant array does not exist or does not have enough elements.");
+            setpeutjouer("pas encore");
           }
-        } else {
-          console.log("No document found with the provided idJeu");
         }
-      } catch (error) {
-        console.error("Error fetching document: ", error);
-      }
-    }
+      });
+    });
+
+    return () => unsubscribe();
+  }, [pionsCount, monNom]);
+
+  const estEgalApprox = (valeur1, valeur2, tolerance = 0.3) => {
+    // Comparaison dans les deux sens avec la valeur absolue
+    return Math.abs(valeur1 - valeur2) <= tolerance ;
   };
 
-  
+  const checkPointMatch = async (touchPoint) => {
+    console.log(touchPoint);
 
-  const checkPointMatch = (touchPoint, points) => {
-    for (let i = 0; i < points.length; i++) {
-      const pion = points[i];
-      const pionX = pion.normalizedX+ pionWidth / 2;
-      const pionY = pion.normalizedY + pionHeight / 2;
-  
+    for (let i = 0; i < pionsAdversaire.length; i++) {
+      const pionX = parseFloat(pionsAdversaire[i].normalizedX, 10);
+      const pionY = parseFloat(pionsAdversaire[i].normalizedY, 10);
+
       if (
-        touchPoint.x >= pionX - pionWidth / 2 &&
-        touchPoint.x <= pionX + pionWidth / 2 &&
-        touchPoint.y >= pionY - pionHeight / 2 &&
-        touchPoint.y <= pionY + pionHeight / 2
-      ) {
-        setTouched(pion);
-        points.splice(i, 1);
+        estEgalApprox(pionX, touchPoint.normalizedX) &&
+        estEgalApprox(pionY, touchPoint.normalizedY)
+           ) {
+        pionsAdversaire.splice(i, 1);
+        //mettre a jour la bd
+        try {
+          console.log("Fetching document...");
+          const docSnapshot = await firestore()
+            .collection("PourJeu")
+            .doc(idJeu)
+            .get(); // Await the get method
+          console.log("Document fetched:", docSnapshot.exists);
+
+          if (docSnapshot.exists) {
+            const data = docSnapshot.data();
+            console.log("Document data:", data);
+
+            if (data.MailParticipant) {
+              console.log("MailParticipant field exists");
+              const opponentIndex = data.MailParticipant.findIndex(
+                (participant) => participant.nom !== monNom
+              ); // Find index of opponent
+              console.log("Opponent index:", opponentIndex);
+
+              if (opponentIndex !== -1) {
+                // Check if an opponent was found
+                console.log(
+                  "Opponent found:",
+                  data.MailParticipant[opponentIndex]
+                );
+                data.MailParticipant[opponentIndex].positionImages =
+                  pionsAdversaire; // Update the opponent's positionImages
+                console.log(
+                  "Updating opponent positionImages with:",
+                  pionsAdversaire
+                );
+                await firestore().collection("PourJeu").doc(idJeu).update(data); // Update Firestore document
+                setScore(prev=>prev+1);
+                console.log("Firebase updated successfully");
+              } else {
+                console.log("Opponent not found");
+              }
+            } else {
+              console.log("MailParticipant field does not exist");
+            }
+          } else {
+            console.log("Document does not exist");
+          }
+        } catch (error) {
+          console.error("Error updating Firebase:", error);
+        }
         return true;
       }
     }
     return false;
   };
-  
 
   const handleBoardPress = async (event) => {
     if (pionsCount >= 5) {
@@ -384,13 +378,13 @@ useEffect(() => {
         };
 
         setTouchPoints((prevPoints) => [...prevPoints, newTouchPoint]);
-        setCountTour(previousCount=> previousCount+1);
-        console.log(pionsAdv);
-        if (checkPointMatch(newTouchPoint, pionsAdv)) {
-          setScoreMachine((prevScore) => prevScore + 1);
-          setTouchedByMachine(touchableMachine[countTourMachine]);
+        setCountTour((previousCount) => previousCount + 1);
+
+        if (await checkPointMatch(newTouchPoint)) {
+          setScore((prevScore) => prevScore + 1);
+          //setTouchedByMachine(touchableMachine[countTourMachine]);
           Snackbar.show({
-            text: "Vous venez de perdre un piont!",
+            text: "Vous venez toucher un pions 🎊 !",
             duration: Snackbar.LENGTH_LONG,
           });
         } else {
@@ -399,13 +393,8 @@ useEffect(() => {
             duration: Snackbar.LENGTH_LONG,
           });
         }
-
-        //setTouchable(false);
-        
-
-        //setCountTourMachine((previousCount) => previousCount + 1);
-      }else{
-        setCountTour(previousCount=> previousCount+1);
+      } else {
+        setCountTour((previousCount) => previousCount + 1);
       }
       return;
     }
@@ -426,7 +415,6 @@ useEffect(() => {
 
     setPions((prevPions) => [...prevPions, newPion]);
     setPionsCount((prevCount) => prevCount + 1);
- 
   };
 
   const handleGemini = async () => {
@@ -435,7 +423,9 @@ useEffect(() => {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     try {
-      const result = await model.generateContent("Write a story about AI and magic");
+      const result = await model.generateContent(
+        "Write a story about AI and magic"
+      );
       const text = result.response.text;
       console.log(text);
     } catch (error) {
@@ -463,96 +453,102 @@ useEffect(() => {
   };
 
   return (
-<View style={styles.container}>
-  {peutjouer === "pas encore" ? (
-    <View style={styles.waitingContainer}>
-      <Text style={styles.waitingText}> L'autre joueur n'a pas encore place ses pions</Text>
-    </View>
-  ) : (
-    <>
-      {showMachineScore && (
-        <View style={styles.scoreContainer}>
-        <Text style={styles.scoreText}>
-          Score: Moi {score} - {scoreMachine} {adversaireNom} 
-        </Text>
-      </View>
-      
-      )}
-
-      {/* Plateau de jeu */}
-      <TouchableWithoutFeedback onPress={handleBoardPress} disabled={!touchable}>
-        <View style={styles.board}>
-          {pions.map((pion) => (
-            <Image
-              key={pion.id}
-              source={pion.type === "Reine" ? Reine : Soldat}
-              style={[
-                styles.pion,
-                {
-                  width: pionWidth,
-                  height: pionHeight,
-                  left: pion.x,
-                  top: pion.y,
-                  opacity:
-                    touched && touched.id === pion.id ? 0 : 1,
-                },
-              ]}
-            />
-          ))}
-          {touchPoints.map((point) => (
-            <View
-              key={point.id}
-              style={[
-                styles.touchPoint,
-                {
-                  width: 10,
-                  height: 10,
-                  left: point.x,
-                  top: point.y,
-                  backgroundColor: point.color,
-                },
-              ]}
-            ></View>
-          ))}
+    <View style={styles.container}>
+      {peutjouer === "pas encore" ? (
+        <View style={styles.waitingContainer}>
+          <Text style={styles.waitingText}>
+            {" "}
+            L'autre joueur n'a pas encore place ses pions
+          </Text>
         </View>
-      </TouchableWithoutFeedback>
-      {showMachineScore && (
-        <TouchableOpacity style={styles.buttonContainer} onPress={handleGemini}>
-          <Text style={styles.buttonText}>Demandez à Gemini</Text>
-        </TouchableOpacity>
-      )}
-      <Modal visible={gameOver} animationType="slide" transparent={true}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalText}>{winner} a gagné!</Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalButton}
-                onPress={() => {
-                  initializeGameState();
-                  setGameOver(false);
-                  setWinner(null);
-                }}
-              >
-                <Text style={styles.buttonText}>Recommencer</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalButton}
-                onPress={() => {
-                  navigation.goBack();
-                }}
-              >
-                <Text style={styles.buttonText}>Terminer</Text>
-              </TouchableOpacity>
+      ) : (
+        <>
+          {showMachineScore && (
+            <View style={styles.scoreContainer}>
+              <Text style={styles.scoreText}>
+                Score: Moi {score} - {scoreMachine} {adversaireNom}
+              </Text>
             </View>
-          </View>
-        </View>
-      </Modal>
-      <Toast ref={(ref) => Toast.setRef(ref)} />
-    </>
-  )}
-</View>
+          )}
 
+          {/* Plateau de jeu */}
+          <TouchableWithoutFeedback
+            onPress={handleBoardPress}
+            disabled={!touchable}
+          >
+            <View style={styles.board}>
+              {pions.map((pion) => (
+                <Image
+                  key={pion.id}
+                  source={pion.type === "Reine" ? Reine : Soldat}
+                  style={[
+                    styles.pion,
+                    {
+                      width: pionWidth,
+                      height: pionHeight,
+                      left: pion.x,
+                      top: pion.y,
+                      opacity: touched && touched.id === pion.id ? 0 : 1,
+                    },
+                  ]}
+                />
+              ))}
+              {touchPoints.map((point) => (
+                <View
+                  key={point.id}
+                  style={[
+                    styles.touchPoint,
+                    {
+                      width: 10,
+                      height: 10,
+                      left: point.x,
+                      top: point.y,
+                      backgroundColor: point.color,
+                    },
+                  ]}
+                ></View>
+              ))}
+            </View>
+          </TouchableWithoutFeedback>
+          {showMachineScore && (
+            <TouchableOpacity
+              style={styles.buttonContainer}
+              onPress={handleGemini}
+            >
+              <Text style={styles.buttonText}>Demandez à Gemini</Text>
+            </TouchableOpacity>
+          )}
+          <Modal visible={gameOver} animationType="slide" transparent={true}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalText}>{winner} a gagné!</Text>
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={styles.modalButton}
+                    onPress={() => {
+                      initializeGameState();
+                      setGameOver(false);
+                      setWinner(null);
+                    }}
+                  >
+                    <Text style={styles.buttonText}>Recommencer</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.modalButton}
+                    onPress={() => {
+                      navigation.goBack();
+                    }}
+                  >
+                    <Text style={styles.buttonText}>Terminer</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+          <Toast ref={(ref) => Toast.setRef(ref)} />
+        </>
+      )}
+    </View>
   );
 };
 
@@ -638,13 +634,13 @@ const styles = StyleSheet.create({
   },
   waitingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'white',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "white",
   },
   waitingText: {
     fontSize: 18,
-    color: 'black',
+    color: "black",
   },
 });
 
