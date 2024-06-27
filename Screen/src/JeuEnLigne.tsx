@@ -28,15 +28,10 @@ const JeuEnLigne = () => {
   const [pionsCount, setPionsCount] = useState(0);
   const [touchable, setTouchable] = useState(true);
   const [touchPoints, setTouchPoints] = useState([]);
-  const [pionsAdv, setPionsAdv] = useState([]);
-  const [touchPointsAdversaire, setTouchPointsAdversaire] = useState([]);
 
-  const [monTour, setTour] = useState(true);
   const [score, setScore] = useState(0);
   const [scoreMachine, setScoreMachine] = useState(0);
   const [showMachineScore, setShowMachineScore] = useState(false);
-  const [touchableMachine, settouchableMachine] = useState([]);
-  const [countTour, setCountTour] = useState(0);
   const [screenWidth, setScreenWidth] = useState(
     Dimensions.get("window").width
   );
@@ -55,37 +50,97 @@ const JeuEnLigne = () => {
   const [pionsAdversaire, setPionsAdversaire] = useState([]);
   const [monNom, setMonNom] = useState("");
   const [premierPassage, setPremierPassage] = useState(false);
+  const [piontTouche, setPiontTouche] = useState(false);
 
   useEffect(() => {
     const Maj = async () => {
-      if (premierPassage ) {
+      if (piontTouche) {
+        try {
+          console.log("Fetching document...");
+          const docSnapshot = await firestore()
+            .collection("PourJeu")
+            .doc(idJeu)
+            .get(); // Attendre la récupération du document
+          console.log("Document fetched:", docSnapshot.exists);
+
+          if (docSnapshot.exists) {
+            const data = docSnapshot.data();
+            console.log("Document data:", data);
+
+            if (data.MailParticipant) {
+              console.log("MailParticipant field exists");
+              const opponentIndex = data.MailParticipant.findIndex(
+                (participant) => participant.nom !== monNom
+              ); // Trouver l'index de l'adversaire
+              console.log("Opponent index:", opponentIndex);
+
+              if (opponentIndex !== -1) {
+                // Vérifier si un adversaire a été trouvé
+                console.log(
+                  "Opponent found:",
+                  data.MailParticipant[opponentIndex]
+                );
+                data.MailParticipant[opponentIndex].positionImages =
+                  pionsAdversaire; // Mettre à jour les positions des images de l'adversaire
+                console.log(
+                  "Updating opponent positionImages with:",
+                  pionsAdversaire
+                );
+                await firestore().collection("PourJeu").doc(idJeu).update(data); // Mettre à jour le document Firestore
+                setScore((prev) => prev + 1);
+                setPiontTouche(false);
+                console.log("Firebase updated successfully");
+              } else {
+                console.log("Opponent not found");
+              }
+            } else {
+              console.log("MailParticipant field does not exist");
+            }
+          } else {
+            console.log("Document does not exist");
+          }
+        } catch (error) {
+          console.error("Error updating Firebase:", error);
+        }
+      }
+    };
+    Maj();
+  }, [piontTouche]);
+
+  useEffect(() => {
+    const Maj = async () => {
+      if (premierPassage) {
         console.log("Setting up Firestore listener for pions update");
 
         const gamesRef = firestore().collection("PourJeu");
-        const query = gamesRef.where("gameId", "==", GlobaleVariable.globalString);
-    
+        const query = gamesRef.where(
+          "gameId",
+          "==",
+          GlobaleVariable.globalString
+        );
+
         const unsubscribe = query.onSnapshot((snapshot) => {
           snapshot.docChanges().forEach((change) => {
             const data = change.doc.data();
             if (pionsCount === 5) {
               if (data.MailParticipant && data.MailParticipant.length >= 2) {
                 setTouchable(true);
-                setShowMachineScore(true);    
+                setShowMachineScore(true);
                 const opponent = data.MailParticipant.find(
                   (participant) => participant.nom === monNom
                 );
                 if (opponent) {
-                  const tmp = pions
-                  setPions(opponent.positionImages)
-                  if(pions.length != tmp.length)   setScoreMachine(prev=>prev+1);
+                  const tmp = pions;
+                  setPions(opponent.positionImages);
+                  if (pions.length != tmp.length)
+                    setScoreMachine((prev) => prev + 1);
                 }
               } else {
-                
               }
             }
           });
         });
-    
+
         return () => unsubscribe();
       }
     };
@@ -291,75 +346,26 @@ const JeuEnLigne = () => {
     return () => unsubscribe();
   }, [pionsCount, monNom]);
 
-  const estEgalApprox = (valeur1, valeur2, tolerance = 0.3) => {
-    // Comparaison dans les deux sens avec la valeur absolue
-    return Math.abs(valeur1 - valeur2) <= tolerance ;
-  };
 
-  const checkPointMatch = async (touchPoint) => {
-    console.log(touchPoint);
 
+  const checkPointMatch = (touchPoint) => {
     for (let i = 0; i < pionsAdversaire.length; i++) {
       const pionX = parseFloat(pionsAdversaire[i].normalizedX, 10);
       const pionY = parseFloat(pionsAdversaire[i].normalizedY, 10);
-
+      console.log(pionsAdversaire[i].normalizedX)
+      // Vérification si le point touché correspond au point adverse avec une tolérance
       if (
-        estEgalApprox(pionX, touchPoint.normalizedX) &&
-        estEgalApprox(pionY, touchPoint.normalizedY)
-           ) {
-        pionsAdversaire.splice(i, 1);
-        //mettre a jour la bd
-        try {
-          console.log("Fetching document...");
-          const docSnapshot = await firestore()
-            .collection("PourJeu")
-            .doc(idJeu)
-            .get(); // Await the get method
-          console.log("Document fetched:", docSnapshot.exists);
-
-          if (docSnapshot.exists) {
-            const data = docSnapshot.data();
-            console.log("Document data:", data);
-
-            if (data.MailParticipant) {
-              console.log("MailParticipant field exists");
-              const opponentIndex = data.MailParticipant.findIndex(
-                (participant) => participant.nom !== monNom
-              ); // Find index of opponent
-              console.log("Opponent index:", opponentIndex);
-
-              if (opponentIndex !== -1) {
-                // Check if an opponent was found
-                console.log(
-                  "Opponent found:",
-                  data.MailParticipant[opponentIndex]
-                );
-                data.MailParticipant[opponentIndex].positionImages =
-                  pionsAdversaire; // Update the opponent's positionImages
-                console.log(
-                  "Updating opponent positionImages with:",
-                  pionsAdversaire
-                );
-                await firestore().collection("PourJeu").doc(idJeu).update(data); // Update Firestore document
-                setScore(prev=>prev+1);
-                console.log("Firebase updated successfully");
-              } else {
-                console.log("Opponent not found");
-              }
-            } else {
-              console.log("MailParticipant field does not exist");
-            }
-          } else {
-            console.log("Document does not exist");
-          }
-        } catch (error) {
-          console.error("Error updating Firebase:", error);
-        }
+        Math.abs(pionX - touchPoint.normalizedX) <= 0.3 &&
+        Math.abs(pionY - touchPoint.normalizedY) <= 0.3
+      ) {
+        pionsAdversaire.splice(i, 1); 
+        setPiontTouche(true);
         return true;
       }
     }
     return false;
   };
+  
 
   const handleBoardPress = async (event) => {
     if (pionsCount >= 5) {
@@ -378,13 +384,14 @@ const JeuEnLigne = () => {
         };
 
         setTouchPoints((prevPoints) => [...prevPoints, newTouchPoint]);
-        setCountTour((previousCount) => previousCount + 1);
+        
+        const isMatch = checkPointMatch(newTouchPoint);
 
-        if (await checkPointMatch(newTouchPoint)) {
+        if (isMatch) {
           setScore((prevScore) => prevScore + 1);
-          //setTouchedByMachine(touchableMachine[countTourMachine]);
+
           Snackbar.show({
-            text: "Vous venez toucher un pions 🎊 !",
+            text: "Vous venez de toucher un pion 🎊 !",
             duration: Snackbar.LENGTH_LONG,
           });
         } else {

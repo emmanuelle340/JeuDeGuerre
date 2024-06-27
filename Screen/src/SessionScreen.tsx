@@ -11,6 +11,13 @@ const Session = () => {
   const [userName, setUserName] = useState("");
   const navigation = useNavigation();
 
+  // Fonction pour vérifier si deux valeurs sont approximativement égales en utilisant une tolérance
+const estEgalApprox = (valeur1, valeur2, tolerance = 1) => {
+  console.log(Math.abs(valeur1 - valeur2));
+  return Math.abs(valeur1 - valeur2) <= tolerance;
+};
+
+
   useEffect(() => {
     // Récupérer l'URL de la photo lors de la première charge du composant
     const fetchImageUrl = async () => {
@@ -19,6 +26,7 @@ const Session = () => {
         setImageUrl(storedProfile.photo);
         setUserName(storedProfile.name)
       }
+      
     };
 
     fetchImageUrl();
