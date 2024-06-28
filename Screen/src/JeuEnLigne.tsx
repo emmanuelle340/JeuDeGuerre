@@ -58,31 +58,43 @@ const JeuEnLigne = () => {
         try {
           console.log("Fetching document...");
           const gamesRef = firestore().collection("PourJeu");
-          const query = gamesRef.where("gameId", "==", GlobaleVariable.globalString);
-  
+          const query = gamesRef.where(
+            "gameId",
+            "==",
+            GlobaleVariable.globalString
+          );
+
           const querySnapshot = await query.get();
-  
+
           console.log("Documents fetched:", !querySnapshot.empty);
-  
+
           if (!querySnapshot.empty) {
             const doc = querySnapshot.docs[0]; // Assumes there's only one document
             const data = doc.data();
             console.log("Document data:", data);
-  
+
             if (data.MailParticipant) {
               console.log("MailParticipant field exists");
               const opponentIndex = data.MailParticipant.findIndex(
                 (participant) => participant.nom !== monNom
               ); // Find the opponent's index
               console.log("Opponent index:", opponentIndex);
-  
+
               if (opponentIndex !== -1) {
-                // Check if an opponent was found
-                console.log("Opponent found:", data.MailParticipant[opponentIndex]);
-                data.MailParticipant[opponentIndex].positionImages = pionsAdversaire; // Update opponent's positionImages
-                console.log("Updating opponent positionImages with:", pionsAdversaire);
-                await firestore().collection("PourJeu").doc(doc.id).update(data); // Update the Firestore document
-                setScore((prev) => prev + 1);
+                console.log(
+                  "Opponent found:",
+                  data.MailParticipant[opponentIndex]
+                );
+                data.MailParticipant[opponentIndex].positionImages =
+                  pionsAdversaire; // Update opponent's positionImages
+                console.log(
+                  "Updating opponent positionImages with:",
+                  pionsAdversaire
+                );
+                await firestore()
+                  .collection("PourJeu")
+                  .doc(doc.id)
+                  .update(data); // Update the Firestore document
                 setPiontTouche(false);
                 console.log("Firebase updated successfully");
               } else {
@@ -101,7 +113,10 @@ const JeuEnLigne = () => {
     };
     Maj();
   }, [piontTouche]);
-  
+
+  useEffect(() => {
+    if (peutjouer=="oui")  setScoreMachine(5-pions.length);
+  }, [pions]);
 
   useEffect(() => {
     const Maj = async () => {
@@ -128,8 +143,6 @@ const JeuEnLigne = () => {
                 if (opponent) {
                   const tmp = pions;
                   setPions(opponent.positionImages);
-                  if (pions.length != tmp.length)
-                    setScoreMachine((prev) => prev + 1);
                 }
               } else {
               }
@@ -236,23 +249,26 @@ const JeuEnLigne = () => {
     fetchMonNom();
   }, [pionsCount]);
 
-  useEffect(() => { 
+  useEffect(() => {
     const fetchMonNom = async () => {
       try {
-
         if (monNom && pionsCount === 5) {
           const gamesRef = firestore().collection("PourJeu");
-          const query = gamesRef.where("gameId", "==", GlobaleVariable.globalString);
-          
-  
+          const query = gamesRef.where(
+            "gameId",
+            "==",
+            GlobaleVariable.globalString
+          );
+
           const querySnapshot = await query.get();
 
-  
           if (!querySnapshot.empty) {
             querySnapshot.forEach((doc) => {
               const data = doc.data();
               const existingParticipants = data.MailParticipant;
-              const opponent = existingParticipants.find(participant => participant.nom !== monNom);
+              const opponent = existingParticipants.find(
+                (participant) => participant.nom !== monNom
+              );
               if (opponent) {
                 setPionsAdversaire(opponent.positionImages);
               }
@@ -260,10 +276,13 @@ const JeuEnLigne = () => {
           }
         }
       } catch (error) {
-        console.error("Erreur lors de la récupération de monNom depuis AsyncStorage :", error);
+        console.error(
+          "Erreur lors de la récupération de monNom depuis AsyncStorage :",
+          error
+        );
       }
     };
-  
+
     fetchMonNom();
   }, [peutjouer]);
 
@@ -288,7 +307,6 @@ const JeuEnLigne = () => {
         const data = change.doc.data();
         if (pionsCount === 5) {
           if (data.MailParticipant && data.MailParticipant.length >= 2) {
-            //setTouchable(true);
             setShowMachineScore(true);
             setpeutjouer("oui");
           } else {
@@ -343,27 +361,24 @@ const JeuEnLigne = () => {
     return () => unsubscribe();
   }, [pionsCount, monNom]);
 
-
-
   const checkPointMatch = (touchPoint) => {
-    console.log(pionsAdversaire)
+    console.log(pionsAdversaire);
     for (let i = 0; i < pionsAdversaire.length; i++) {
       const pionX = parseFloat(pionsAdversaire[i].normalizedX, 10);
       const pionY = parseFloat(pionsAdversaire[i].normalizedY, 10);
-      
+
       // Vérification si le point touché correspond au point adverse avec une tolérance
       if (
-        Math.abs(pionX - touchPoint.normalizedX) <= 0.3 &&
-        Math.abs(pionY - touchPoint.normalizedY) <= 0.3
+        Math.abs(pionX - touchPoint.normalizedX) <= 0.2 &&
+        Math.abs(pionY - touchPoint.normalizedY) <= 0.2
       ) {
-        pionsAdversaire.splice(i, 1); 
+        pionsAdversaire.splice(i, 1);
         setPiontTouche(true);
         return true;
       }
     }
     return false;
   };
-  
 
   const handleBoardPress = async (event) => {
     if (pionsCount >= 5) {
@@ -382,7 +397,7 @@ const JeuEnLigne = () => {
         };
 
         setTouchPoints((prevPoints) => [...prevPoints, newTouchPoint]);
-        
+
         const isMatch = checkPointMatch(newTouchPoint);
 
         if (isMatch) {
@@ -438,21 +453,6 @@ const JeuEnLigne = () => {
     }
   };
 
-  const initializeGameState = () => {
-    setPionsMachine([]);
-    setPions([]);
-    setPionsCount(0);
-    setTouchable(true);
-    setTouchPoints([]);
-    setScore(0);
-    setScoreMachine(0);
-    setShowMachineScore(false);
-    setScreenWidth(Dimensions.get("window").width);
-    setScreenHeight(Dimensions.get("window").height);
-    setPionHeight(screenHeight / 5);
-    setPionWidth(pionHeight);
-    setTouched(null);
-  };
 
   return (
     <View style={styles.container}>
@@ -525,20 +525,11 @@ const JeuEnLigne = () => {
               <View style={styles.modalContent}>
                 <Text style={styles.modalText}>{winner} a gagné!</Text>
                 <View style={styles.modalButtons}>
+                  
                   <TouchableOpacity
                     style={styles.modalButton}
                     onPress={() => {
-                      initializeGameState();
-                      setGameOver(false);
-                      setWinner(null);
-                    }}
-                  >
-                    <Text style={styles.buttonText}>Recommencer</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.modalButton}
-                    onPress={() => {
-                      navigation.goBack();
+                      navigation.navigate("Session");
                     }}
                   >
                     <Text style={styles.buttonText}>Terminer</Text>

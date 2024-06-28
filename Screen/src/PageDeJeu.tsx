@@ -31,8 +31,12 @@ const PageDeJeu = () => {
   const [showMachineScore, setShowMachineScore] = useState(false);
   const [touchableMachine, settouchableMachine] = useState([]);
   const [countTourMachine, setCountTourMachine] = useState(0);
-  const [screenWidth, setScreenWidth] = useState(Dimensions.get("window").width);
-  const [screenHeight, setScreenHeight] = useState(Dimensions.get("window").height);
+  const [screenWidth, setScreenWidth] = useState(
+    Dimensions.get("window").width
+  );
+  const [screenHeight, setScreenHeight] = useState(
+    Dimensions.get("window").height
+  );
   const [gameOver, setGameOver] = useState(false);
   const [winner, setWinner] = useState(null); // 'Moi' or 'Machine'
   const [pionHeight, setPionHeight] = useState(screenHeight / 5); // Hauteur disponible pour chaque pion
@@ -226,17 +230,18 @@ const PageDeJeu = () => {
   };
 
   const handleGemini = async () => {
-    const API_KEY = "AIzaSyBnYcO9geA8JOgXOGyN9kkp56iK8OeJy2A"; // Replace with your actual API key
+    const API_KEY = "AIzaSyDxkk3NhuVmiEzd5HtDZsKXHSVqynUR_IQ";
     const genAI = new GoogleGenerativeAI(API_KEY);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    try {
-      const result = await model.generateContent("Write a story about AI and magic");
-      const text = result.response.text;
-      console.log(text);
-    } catch (error) {
-      console.error("Error generating content:", error);
-    }
+    const result = await model.generateContent(
+      "Write a story about AI and magic"
+    );
+    const text = result.response.text;
+    console.log("mon texte: ", text);
+    // } catch (error) {
+    //   console.error("Error generating content:", error);
+    // }
   };
 
   const initializeGameState = () => {
@@ -269,7 +274,10 @@ const PageDeJeu = () => {
       )}
 
       {/* Plateau de jeu */}
-      <TouchableWithoutFeedback onPress={handleBoardPress} disabled={!touchable}>
+      <TouchableWithoutFeedback
+        onPress={handleBoardPress}
+        disabled={!touchable}
+      >
         <View style={styles.board}>
           {pions.map((pion) => (
             <Image
@@ -306,7 +314,7 @@ const PageDeJeu = () => {
         </View>
       </TouchableWithoutFeedback>
       {showMachineScore && (
-        <TouchableOpacity style={styles.buttonContainer} onPress={()=>handleGemini}>
+        <TouchableOpacity style={styles.buttonContainer} onPress={()=>handleGemini()}>
           <Text style={styles.buttonText}>Demandez à Gemini</Text>
         </TouchableOpacity>
       )}
